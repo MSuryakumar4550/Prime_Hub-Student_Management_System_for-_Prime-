@@ -1,52 +1,53 @@
 package com.student.management_system.controller;
 
 import com.student.management_system.entity.Task;
+import com.student.management_system.entity.TaskAssignment;
 import com.student.management_system.service.TaskService;
+import com.student.management_system.service.TaskAssignmentService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.student.management_system.dto.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/tasks")
-@CrossOrigin(origins = "*") // Allow React to access this
 public class TaskController {
 
     @Autowired
     private TaskService taskService;
 
-    // 1. Create a new Task
-    // URL: POST http://localhost:8080/api/tasks/create?teacherId=1
+    @Autowired
+    private TaskAssignmentService taskAssignmentService;
+
+    @GetMapping
+    public List<Task> getAllTasks() {
+        return taskService.getAllTasks();
+    }
+
     @PostMapping("/create")
     public Task createTask(@RequestBody TaskRequest request) {
         return taskService.createTask(request);
     }
 
-    // 2. Assign Task to Individual Students
-    // URL: POST http://localhost:8080/api/tasks/assign/students?taskId=5
     @PostMapping("/assign/students")
     public String assignToStudents(@RequestBody AssignmentRequest request) {
         taskService.assignToStudents(request.getTaskId(), request.getStudentIds());
-        return "Task assigned to students successfully.";
+        return "Task assigned successfully.";
     }
 
-    // 3. Assign Task to a Team
-    // URL: POST http://localhost:8080/api/tasks/assign/team?taskId=5&teamId=10
     @PostMapping("/assign/team")
     public String assignToTeam(@RequestBody AssignmentRequest request) {
         taskService.assignToTeam(request.getTaskId(), request.getTeamId());
         return "Task assigned to team successfully.";
     }
 
-    // 4. SUBMIT TASK (You were missing this!)
-    // URL: POST /api/tasks/submit?studentId=2&taskId=2
-    @PostMapping("/submit")
-    public String submitTask(@RequestParam Long studentId, @RequestParam Long taskId) {
-        taskService.submitTask(studentId, taskId);
+    @PostMapping("/submit/{assignmentId}")
+    public String submitTask(@PathVariable Long assignmentId) {
+        taskService.submitTaskByAssignmentId(assignmentId);
         return "Task submitted successfully.";
     }
 
-    // 5. GRADE TASK (You were missing this too!)
-    // URL: POST /api/tasks/grade
     @PostMapping("/grade")
     public String gradeTask(
             @RequestParam Long teacherId,
@@ -57,5 +58,44 @@ public class TaskController {
 
         taskService.gradeTask(teacherId, taskId, studentId, score, feedback);
         return "Task graded successfully.";
+    }
+
+    @DeleteMapping("/{taskId}")
+    public ResponseEntity<?> deleteTask(@PathVariable Long taskId) {
+        taskService.deleteTask(taskId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/teacher/{teacherId}/assignments")
+    public List<TaskAssignment> getTeacherAssignments(@PathVariable Long teacherId) {
+        return taskAssignmentService.getTeacherAssignments(teacherId); // Assuming you wire this through TaskService or
+                                                                       // inject
+        // TaskAssignmentService directly
+    }
+
+    @GetMapping("/teacher/{teacherId}")
+    public List<Task> getTasksByTeacher(@PathVariable Long teacherId) {
+        return taskService.getTasksByTeacher(teacherId);
+    }
+
+    @PatchMapping("/assignments/{assignmentId}")
+    public ResponseEntity<String> patchScore(
+            @PathVariable Long assignmentId,
+            @RequestBody ScoreRequest request) {
+        taskService.patchScore(assignmentId, request.getScore());
+        return ResponseEntity.ok("Score updated.");
+    }
+
+    // ✅ ADD — inner class for PATCH body
+    public static class ScoreRequest {
+        private Integer score;
+
+        public Integer getScore() {
+            return score;
+        }
+
+        public void setScore(Integer score) {
+            this.score = score;
+        }
     }
 }

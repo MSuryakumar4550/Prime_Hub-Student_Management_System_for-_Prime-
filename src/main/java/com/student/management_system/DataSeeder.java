@@ -5,10 +5,8 @@ import com.student.management_system.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.time.LocalDateTime;
+import java.time.LocalDate; // ✅ FIXED: was LocalDateTime
 import java.util.Arrays;
 
 @Component
@@ -31,11 +29,10 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Stop if data already exists (so we don't create duplicates every time)
         if (userRepository.count() > 0)
             return;
 
-        System.out.println(" SEEDING DATA START...");
+        System.out.println("SEEDING DATA START...");
 
         // 1. Create Users
         User teacher = new User();
@@ -68,7 +65,7 @@ public class DataSeeder implements CommandLineRunner {
 
         // 2. Create a Team
         Team gryffindor = new Team();
-        gryffindor.setTeamName(" Coders");
+        gryffindor.setTeamName("Coders");
         gryffindor.setCreatedBy(teacher);
         gryffindor.setMembers(Arrays.asList(student1, student2));
         teamRepository.save(gryffindor);
@@ -79,19 +76,19 @@ public class DataSeeder implements CommandLineRunner {
         task.setDescription("Use Java Spring Boot to make it fly.");
         task.setPriority(Task.Priority.HIGH);
         task.setTaskType(Task.TaskType.INDIVIDUAL);
-        task.setDueDate(LocalDateTime.now().plusDays(7));
+        task.setDueDate(LocalDate.now().plusDays(7)); // ✅ FIXED: LocalDate not LocalDateTime
         task.setCreatedBy(teacher);
         taskRepository.save(task);
 
-        // 4. Assign Task to (Individual)
+        // 4. Assign Task to Student
         TaskAssignment assignment = new TaskAssignment();
         assignment.setTask(task);
         assignment.setStudent(student1);
         assignment.setStatus(TaskAssignment.AssignmentStatus.PENDING);
         assignmentRepository.save(assignment);
 
-        System.out.println(" DATA SEEDING COMPLETED!");
-        System.out.println(" Teacher ID: " + teacher.getUserId());
-        System.out.println(" Student ID : " + student1.getUserId());
+        System.out.println("DATA SEEDING COMPLETED!");
+        System.out.println("Teacher ID: " + teacher.getUserId());
+        System.out.println("Student ID: " + student1.getUserId());
     }
 }

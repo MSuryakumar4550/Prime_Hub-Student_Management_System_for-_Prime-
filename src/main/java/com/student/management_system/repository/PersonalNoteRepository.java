@@ -7,4 +7,6 @@ import java.util.List;
 public interface PersonalNoteRepository extends JpaRepository<PersonalNote, Long> {
     // Find notes by Teacher AND Student
     List<PersonalNote> findByTeacher_UserIdAndStudent_UserId(Long teacherId, Long studentId);
+
+    List<PersonalNote> findByStudent_UserId(Long studentId);
 }

@@ -1,10 +1,20 @@
 package com.student.management_system.controller;
 
 import com.student.management_system.entity.User;
-import com.student.management_system.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import com.student.management_system.repository.UserRepository;
 import com.student.management_system.security.JwtUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -12,41 +22,50 @@ import com.student.management_system.security.JwtUtils;
 public class AuthController {
 
     @Autowired
-    private UserService userService;
+    @Lazy // TRICK: This breaks the circular dependency loop causing the StackOverflow
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private JwtUtils jwtUtils;
 
-    // URL: POST http://localhost:8080/api/auth/login
     @PostMapping("/login")
-    public java.util.Map<String, Object> login(@RequestBody LoginRequest request) {
-        // 1. Verify User exists & Password is correct
-        User user = userService.login(request.getEmail(), request.getPassword());
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        try {
+            // 1. PROFESSIONAL AUTHENTICATION
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
-        if (user == null) {
-            throw new RuntimeException("Invalid credentials");
+            // 2. FETCH USER DATA
+            User user = userRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> new RuntimeException("User not found after authentication"));
+
+            // 3. GENERATE TOKEN
+            String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
+
+            // 4. BUILD CLEAN RESPONSE
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token);
+            response.put("type", "Bearer");
+            response.put("role", user.getRole().name());
+            response.put("name", user.getName());
+            response.put("email", user.getEmail());
+            response.put("id", user.getUserId());
+            response.put("profileImageUrl", user.getProfileImageUrl());
+
+            return ResponseEntity.ok(response);
+
+        } catch (AuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid email or password");
         }
-
-        // 2. GENERATE TOKEN (This was missing!)
-        String token = jwtUtils.generateToken(user.getEmail());
-
-        // 3. Send Token + User Info back to the client
-        java.util.Map<String, Object> response = new java.util.HashMap<>();
-        response.put("token", token); // The Key Card
-        response.put("type", "Bearer");
-        response.put("role", user.getRole()); // "ADMIN", "TEACHER", etc.
-        response.put("name", user.getName());
-        response.put("email", user.getEmail());
-
-        return response;
     }
 
-    // Simple DTO class for login
     public static class LoginRequest {
         private String email;
         private String password;
 
-        // Getters and Setters needed for JSON
         public String getEmail() {
             return email;
         }

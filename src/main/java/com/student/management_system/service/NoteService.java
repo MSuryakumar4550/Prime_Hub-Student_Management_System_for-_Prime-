@@ -33,6 +33,9 @@ public class NoteService {
     }
 
     public List<PersonalNote> getNotesForStudent(Long teacherId, Long studentId) {
-        return noteRepository.findByTeacher_UserIdAndStudent_UserId(teacherId, studentId);
+        if (teacherId != null) {
+            return noteRepository.findByTeacher_UserIdAndStudent_UserId(teacherId, studentId);
+        }
+        return noteRepository.findByStudent_UserId(studentId);
     }
 }

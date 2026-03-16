@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByCreatedBy_UserId(Long teacherId);
+
 }

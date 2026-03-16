@@ -1,16 +1,12 @@
 package com.student.management_system.service;
 
-import com.student.management_system.entity.Task;
-import com.student.management_system.entity.TaskAssignment;
-import com.student.management_system.entity.Team;
-import com.student.management_system.entity.User;
-import com.student.management_system.repository.TaskAssignmentRepository;
-import com.student.management_system.repository.TaskRepository;
-import com.student.management_system.repository.TeamRepository;
-import com.student.management_system.repository.UserRepository;
+import com.student.management_system.entity.*;
+import com.student.management_system.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.student.management_system.dto.TaskRequest;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -18,87 +14,105 @@ public class TaskService {
 
     @Autowired
     private TaskRepository taskRepository;
-
     @Autowired
     private TaskAssignmentRepository assignmentRepository;
-
     @Autowired
     private UserRepository userRepository;
-
     @Autowired
     private TeamRepository teamRepository;
 
-    // --- LOGIC 1: Create a Task Definition ---
+    public List<Task> getAllTasks() {
+        return taskRepository.findAll();
+    }
+
     public Task createTask(TaskRequest request) {
-        User teacher = userRepository.findById(request.getTeacherId())
-                .orElseThrow(() -> new RuntimeException("Teacher not found"));
+        // ✅ FIXED: accept both teacherId and createdByUserId from frontend
+        Long userId = request.getTeacherId() != null
+                ? request.getTeacherId()
+                : request.getCreatedByUserId();
+
+        if (userId == null) {
+            throw new RuntimeException("Teacher/Creator ID is required to create a task.");
+        }
+
+        User teacher = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
 
         Task task = new Task();
         task.setTitle(request.getTitle());
         task.setDescription(request.getDescription());
-        task.setPriority(request.getPriority());
-        task.setTaskType(request.getTaskType());
+
+        // ✅ Set defaults if not provided — prevents null constraint issues
+        task.setPriority(request.getPriority() != null ? request.getPriority() : Task.Priority.NORMAL);
+        task.setTaskType(request.getTaskType() != null ? request.getTaskType() : Task.TaskType.INDIVIDUAL);
         task.setDueDate(request.getDueDate());
         task.setCreatedBy(teacher);
 
         return taskRepository.save(task);
     }
 
-    // --- LOGIC 2: Assign to INDIVIDUAL Students ---
     public void assignToStudents(Long taskId, List<Long> studentIds) {
         Task task = taskRepository.findById(taskId).orElseThrow();
         List<User> students = userRepository.findAllById(studentIds);
-
         for (User student : students) {
-            TaskAssignment assignment = new TaskAssignment();
-            assignment.setTask(task);
-            assignment.setStudent(student); // Link to Student
-            assignment.setTeam(null); // No Team
-            assignment.setStatus(TaskAssignment.AssignmentStatus.PENDING);
-
-            assignmentRepository.save(assignment);
+            createAssignment(task, student, null);
         }
     }
 
-    // --- LOGIC 3: Assign to a TEAM ---
     public void assignToTeam(Long taskId, Long teamId) {
         Task task = taskRepository.findById(taskId).orElseThrow();
         Team team = teamRepository.findById(teamId).orElseThrow();
+        for (User student : team.getMembers()) {
+            createAssignment(task, student, team);
+        }
+    }
 
-        // Create ONE assignment for the whole team
+    private void createAssignment(Task task, User student, Team team) {
         TaskAssignment assignment = new TaskAssignment();
         assignment.setTask(task);
-        assignment.setTeam(team); // Link to Team
-        assignment.setStudent(null); // No single student
+        assignment.setStudent(student);
+        assignment.setTeam(team);
         assignment.setStatus(TaskAssignment.AssignmentStatus.PENDING);
-
         assignmentRepository.save(assignment);
     }
 
-    // 4. LOGIC: Submit a Task
-    public void submitTask(Long studentId, Long taskId) {
-        TaskAssignment assignment = assignmentRepository.findByStudent_UserIdAndTask_TaskId(studentId, taskId)
-                .orElseThrow(() -> new RuntimeException("Assignment not found for this student and task"));
-
-        assignment.setSubmissionDate(java.time.LocalDateTime.now());
-        assignment.setStatus(TaskAssignment.AssignmentStatus.COMPLETED); // Or SUBMITTED depending on your Enum
-
-        assignmentRepository.save(assignment);
-    }
-
-    // 5. LOGIC: Grade a Task
-    public void gradeTask(Long teacherId, Long taskId, Long studentId, int score, String feedback) {
-        TaskAssignment assignment = assignmentRepository.findByStudent_UserIdAndTask_TaskId(studentId, taskId)
+    public void submitTaskByAssignmentId(Long assignmentId) {
+        TaskAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new RuntimeException("Assignment not found"));
+        assignment.setSubmissionDate(LocalDateTime.now());
+        assignment.setStatus(TaskAssignment.AssignmentStatus.COMPLETED);
+        assignmentRepository.save(assignment);
+    }
 
-        // Verify the teacher exists (Optional but good practice)
-        User teacher = userRepository.findById(teacherId)
-                .orElseThrow(() -> new RuntimeException("Teacher not found"));
-
+    public void gradeTask(Long teacherId, Long taskId, Long studentId, int score, String feedback) {
+        TaskAssignment assignment = assignmentRepository
+                .findByStudent_UserIdAndTask_TaskId(studentId, taskId)
+                .orElseThrow(() -> new RuntimeException("Assignment not found"));
+        User teacher = userRepository.findById(teacherId).orElseThrow();
         assignment.setScore(score);
         assignment.setFeedback(feedback);
         assignment.setEvaluatedBy(teacher);
+        assignmentRepository.save(assignment);
+    }
 
+    @Transactional
+    public void deleteTask(Long taskId) {
+        try {
+            assignmentRepository.deleteAllByTask_TaskId(taskId);
+            taskRepository.deleteById(taskId);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete task: " + e.getMessage());
+        }
+    }
+
+    public List<Task> getTasksByTeacher(Long teacherId) {
+        return taskRepository.findByCreatedBy_UserId(teacherId);
+    }
+
+    public void patchScore(Long assignmentId, Integer score) {
+        TaskAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new RuntimeException("Assignment not found: " + assignmentId));
+        assignment.setScore(score);
         assignmentRepository.save(assignment);
     }
 }

@@ -13,30 +13,37 @@ import java.util.List;
 public class AdminController {
 
     @Autowired
-    private UserService userService; // Use Service, NOT Repository directly
+    private UserService userService;
 
     // 1. Get All Users
+    // Matches React: usersAPI.list()
     @GetMapping("/users")
     public List<User> getAllUsers() {
         return userService.getAllUsers();
     }
 
     // 2. Add New User
-    @PostMapping("/users/add")
+    // FIXED: Removed "/add" to match React usersAPI.create()
+    @PostMapping("/users")
     public User addUser(@RequestBody User user) {
         return userService.addUser(user);
     }
 
     // 3. Update User
+    // Matches React: usersAPI.update(id, data)
     @PutMapping("/users/{id}")
-    public User updateUser(@PathVariable Long id, @RequestBody User userDetails) {
+    public User updateUser(@PathVariable("id") Long id, @RequestBody User userDetails) {
         return userService.updateUser(id, userDetails);
     }
 
     // 4. Delete User
+    // Matches React: usersAPI.remove(id)
     @DeleteMapping("/users/{id}")
-    public String deleteUser(@PathVariable Long id) {
+    public java.util.Map<String, String> deleteUser(@PathVariable("id") Long id) {
         userService.deleteUser(id);
-        return "User deleted successfully.";
+        // Returning a Map/JSON is better for React than a plain String
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("message", "User deleted successfully.");
+        return response;
     }
 }

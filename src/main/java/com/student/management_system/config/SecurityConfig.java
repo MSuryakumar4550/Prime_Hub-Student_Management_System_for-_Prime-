@@ -1,21 +1,37 @@
 package com.student.management_system.config;
 
 import com.student.management_system.security.JwtAuthenticationFilter;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.student.management_system.security.UserDetailsServiceImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
+@EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final UserDetailsServiceImpl userDetailsService;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+            UserDetailsServiceImpl userDetailsService) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.userDetailsService = userDetailsService;
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -23,48 +39,80 @@ public class SecurityConfig {
     }
 
     @Bean
+    public AuthenticationManager authenticationManager(HttpSecurity http, PasswordEncoder passwordEncoder)
+            throws Exception {
+        AuthenticationManagerBuilder authenticationManagerBuilder = http
+                .getSharedObject(AuthenticationManagerBuilder.class);
+        authenticationManagerBuilder
+                .userDetailsService(userDetailsService)
+                .passwordEncoder(passwordEncoder);
+        return authenticationManagerBuilder.build();
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // Disable CSRF for Stateless APIs
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll()
 
-                        // --- 1. PUBLIC ENDPOINTS ---
-                        .requestMatchers("/api/auth/**").permitAll() // Login/Register
-
-                        // --- 2. ADMIN CONTROLLER ---
+                        // ADMIN only routes
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                        // --- 3. TASK CONTROLLER RULES (Specific) ---
-                        .requestMatchers("/api/tasks/create", "/api/tasks/assign/**", "/api/tasks/grade")
-                        .hasRole("TEACHER")
-                        .requestMatchers("/api/tasks/submit").hasRole("STUDENT")
-
-                        // --- 4. SCHOOL CONTROLLER RULES (Mixed) ---
-                        // Announcements: Teachers/Admins Post, Everyone Reads
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/school/announcements")
-                        .hasAnyRole("TEACHER", "ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/school/announcements")
-                        .authenticated()
-
-                        // Leaves: Student Applies, Teacher Approves
-                        .requestMatchers("/api/school/leave/apply").hasRole("STUDENT")
-                        .requestMatchers("/api/school/leave/pending", "/api/school/leave/status/**")
-                        .hasAnyRole("TEACHER", "ADMIN")
-
-                        // Notes: Teacher Writes/Reads
-                        .requestMatchers("/api/school/notes/**").hasAnyRole("TEACHER", "ADMIN")
-
-                        // --- 5. STUDENT DASHBOARD ---
-                        .requestMatchers("/api/student/**").hasRole("STUDENT")
-
-                        // --- 6. TEACHER DASHBOARD (General) ---
+                        // TEACHER only routes
                         .requestMatchers("/api/teacher/**").hasRole("TEACHER")
 
-                        // --- 7. CATCH ALL ---
+                        // STUDENT only routes
+                        .requestMatchers("/api/student/**").hasRole("STUDENT")
+
+                        // SCHOOL routes — GET for everyone
+                        .requestMatchers(HttpMethod.GET, "/api/school/**")
+                        .hasAnyRole("ADMIN", "TEACHER", "STUDENT")
+
+                        // SCHOOL routes — POST: admin + teacher can post announcements/notes
+                        // student can apply leave
+                        .requestMatchers(HttpMethod.POST, "/api/school/**")
+                        .hasAnyRole("ADMIN", "TEACHER", "STUDENT") // ✅ FIXED: added STUDENT
+
+                        // SCHOOL routes — PATCH: only admin + teacher can approve/reject leave
+                        .requestMatchers(HttpMethod.PATCH, "/api/school/**")
+                        .hasAnyRole("ADMIN", "TEACHER")
+
+                        // TASK routes
+                        .requestMatchers(HttpMethod.GET, "/api/tasks/**")
+                        .hasAnyRole("ADMIN", "TEACHER", "STUDENT")
+
+                        // Allow students (and teacher/admin) to submit an assignment
+                        .requestMatchers(HttpMethod.POST, "/api/tasks/submit/**")
+                        .hasAnyRole("ADMIN", "TEACHER", "STUDENT")
+
+                        // All other task POST operations are teacher/admin only
+                        .requestMatchers(HttpMethod.POST, "/api/tasks/**")
+                        .hasAnyRole("ADMIN", "TEACHER")
+
+                        .requestMatchers(HttpMethod.DELETE, "/api/tasks/**")
+                        .hasAnyRole("ADMIN", "TEACHER")
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/tasks/**")
+                        .hasAnyRole("ADMIN", "TEACHER")
                         .anyRequest().authenticated())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

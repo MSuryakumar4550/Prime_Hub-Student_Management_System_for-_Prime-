@@ -2,6 +2,7 @@ package com.student.management_system.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.time.LocalDate; // ✅ FIXED: was LocalDateTime
 import java.time.LocalDateTime;
 
 @Entity
@@ -20,12 +21,12 @@ public class Task {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    private Priority priority; // NORMAL, HIGH
+    private Priority priority;
 
     @Enumerated(EnumType.STRING)
-    private TaskType taskType; // INDIVIDUAL, TEAM
+    private TaskType taskType;
 
-    private LocalDateTime dueDate;
+    private LocalDate dueDate; // ✅ FIXED: was LocalDateTime — frontend sends "yyyy-MM-dd"
 
     @ManyToOne
     @JoinColumn(name = "created_by_user_id", nullable = false)
@@ -34,7 +35,7 @@ public class Task {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public enum Priority {
-        NORMAL, HIGH
+        NORMAL, MEDIUM, HIGH
     }
 
     public enum TaskType {
