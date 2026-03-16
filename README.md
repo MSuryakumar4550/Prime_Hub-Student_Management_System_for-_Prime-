@@ -19,6 +19,7 @@ The system follows a **stateless authentication model using JWT**, ensuring scal
 
 ---
 
+
 ## ✨ Key Features
 
 - ✅ Stateless Authentication using JWT (24-hour token validity)
