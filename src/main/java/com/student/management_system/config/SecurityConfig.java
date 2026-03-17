@@ -64,8 +64,8 @@ public class SecurityConfig {
                         // TEACHER only routes
                         .requestMatchers("/api/teacher/**").hasRole("TEACHER")
 
-                        // STUDENT only routes
-                        .requestMatchers("/api/student/**").hasRole("STUDENT", "ADMIN", "TEACHER")
+                        // // STUDENT only routes
+                        // .requestMatchers("/api/student/**").hasRole("STUDENT")
 
                         // SCHOOL routes — GET for everyone
                         .requestMatchers(HttpMethod.GET, "/api/school/**")
@@ -84,6 +84,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/tasks/**")
                         .hasAnyRole("ADMIN", "TEACHER", "STUDENT")
 
+                        // Allow admin and teacher to VIEW student data
+                        .requestMatchers(HttpMethod.GET, "/api/student/**")
+                        .hasAnyRole("STUDENT", "ADMIN", "TEACHER")
+
+                        // Only student can POST/PUT their own data
+                        .requestMatchers(HttpMethod.POST, "/api/student/**").hasRole("STUDENT")
+                        .requestMatchers(HttpMethod.PUT, "/api/student/**").hasRole("STUDENT")
+                                                               
                         // Allow students (and teacher/admin) to submit an assignment
                         .requestMatchers(HttpMethod.POST, "/api/tasks/submit/**")
                         .hasAnyRole("ADMIN", "TEACHER", "STUDENT")
