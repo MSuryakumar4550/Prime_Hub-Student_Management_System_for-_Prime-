@@ -65,7 +65,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/teacher/**").hasRole("TEACHER")
 
                         // STUDENT only routes
-                        .requestMatchers("/api/student/**").hasRole("STUDENT")
+                        .requestMatchers("/api/student/**").hasRole("STUDENT", "ADMIN", "TEACHER")
 
                         // SCHOOL routes — GET for everyone
                         .requestMatchers(HttpMethod.GET, "/api/school/**")
